@@ -1,0 +1,416 @@
+import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.hashers import make_password, check_password
+from .models import User
+from .models import Activite, Specialite
+from .models import *
+from .forms import *
+
+
+@csrf_exempt
+def login(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+
+        email = data.get('email')
+        password = data.get('password')
+
+        if not all([email, password]):
+            return JsonResponse({'error': 'Email et mot de passe sont requis'}, status=400)
+
+        try:
+            user = User.objects.get(email=email, is_deleted=False)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'Email ou mot de passe incorrect'}, status=400)
+
+        if not check_password(password, user.password):
+            return JsonResponse({'error': 'Email ou mot de passe incorrect'}, status=400)
+
+        if not user.is_active:
+            return JsonResponse({'error': 'Compte désactivé'}, status=400)
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Connexion réussie',
+            'user_id': user.id,
+            'nom': user.nom,
+            'prenom': user.prenom,
+            'email': user.email,
+            'telephone': user.telephone,
+            'ville': user.ville,
+            'role': user.role,
+            'is_verified': getattr(user, 'is_verified', False)
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def register_client(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+
+        nom = data.get('nom')
+        prenom = data.get('prenom')
+        email = data.get('email')
+        password = data.get('password')
+        telephone = data.get('telephone')
+        ville = data.get('ville')
+
+        if not all([nom, prenom, email, password]):
+            return JsonResponse({'error': 'Champs obligatoires manquants'}, status=400)
+
+        if User.objects.filter(email=email).exists():
+            return JsonResponse({'error': 'Email déjà utilisé'}, status=400)
+
+        user = User.objects.create(
+            nom=nom,
+            prenom=prenom,
+            email=email,
+            password=make_password(password),
+            telephone=telephone,
+            ville=ville,
+            role='CLIENT'
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Compte client créé avec succès',
+            'user_id': user.id,
+            'nom': user.nom,
+            'prenom': user.prenom,
+            'email': user.email,
+            'telephone': user.telephone,
+            'ville': user.ville,
+            'role': user.role,
+            'is_verified': getattr(user, 'is_verified', False)
+        }, status=201)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def register_artisan(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+
+        nom = data.get('nom')
+        prenom = data.get('prenom')
+        email = data.get('email')
+        password = data.get('password')
+        telephone = data.get('telephone')
+        ville = data.get('ville')
+
+        if not all([nom, prenom, email, password]):
+            return JsonResponse({'error': 'Champs obligatoires manquants'}, status=400)
+
+        if User.objects.filter(email=email).exists():
+            return JsonResponse({'error': 'Email déjà utilisé'}, status=400)
+
+        user = User.objects.create(
+            nom=nom,
+            prenom=prenom,
+            email=email,
+            password=make_password(password),
+            telephone=telephone,
+            ville=ville,
+            role='ARTISAN'
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Compte artisan créé avec succès',
+            'user_id': user.id,
+            'nom': user.nom,
+            'prenom': user.prenom,
+            'email': user.email,
+            'telephone': user.telephone,
+            'ville': user.ville,
+            'role': user.role,
+            'is_verified': getattr(user, 'is_verified', False)
+        }, status=201)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ===================== ACTIVITE =====================
+
+@csrf_exempt
+def activite_create(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        data = json.loads(request.body)
+        nom = data.get('nom')
+        description = data.get('description', '')
+
+        if not nom:
+            return JsonResponse({'error': 'Le nom est requis'}, status=400)
+
+        activite = Activite.objects.create(nom=nom, description=description)
+        return JsonResponse({
+            'success': True,
+            'message': 'Activité créée avec succès',
+            'id': activite.id,
+            'nom': activite.nom,
+            'description': activite.description
+        }, status=201)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def activite_list(request):
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        activites = list(Activite.objects.values())
+        return JsonResponse({'activites': activites}, status=200)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def activite_update(request, activite_id):
+    if request.method != 'PUT':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        activite = Activite.objects.get(id=activite_id)
+        data = json.loads(request.body)
+        activite.nom = data.get('nom', activite.nom)
+        activite.description = data.get('description', activite.description)
+        activite.save()
+        return JsonResponse({'success': True, 'message': 'Activité mise à jour'})
+    except Activite.DoesNotExist:
+        return JsonResponse({'error': 'Activité non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def activite_delete(request, activite_id):
+    if request.method != 'DELETE':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        activite = Activite.objects.get(id=activite_id)
+        activite.delete()
+        return JsonResponse({'success': True, 'message': 'Activité supprimée'})
+    except Activite.DoesNotExist:
+        return JsonResponse({'error': 'Activité non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ===================== SPECIALITE =====================
+
+@csrf_exempt
+def specialite_create(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        data = json.loads(request.body)
+        nom = data.get('nom')
+        description = data.get('description', '')
+        activite_id = data.get('activite_id')
+
+        if not nom or not activite_id:
+            return JsonResponse({'error': 'Nom et activite_id requis'}, status=400)
+
+        specialite = Specialite.objects.create(
+            nom=nom,
+            description=description,
+            activite_id=activite_id
+        )
+        return JsonResponse({
+            'success': True,
+            'message': 'Spécialité créée avec succès',
+            'id': specialite.id,
+            'nom': specialite.nom,
+            'description': specialite.description,
+            'activite_id': specialite.activite_id
+        }, status=201)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def specialite_list(request):
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        specialites = list(Specialite.objects.values())
+        return JsonResponse({'specialites': specialites}, status=200)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def specialite_update(request, specialite_id):
+    if request.method != 'PUT':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        specialite = Specialite.objects.get(id=specialite_id)
+        data = json.loads(request.body)
+        specialite.nom = data.get('nom', specialite.nom)
+        specialite.description = data.get('description', specialite.description)
+        if data.get('activite_id'):
+            specialite.activite_id = data['activite_id']
+        specialite.save()
+        return JsonResponse({'success': True, 'message': 'Spécialité mise à jour'})
+    except Specialite.DoesNotExist:
+        return JsonResponse({'error': 'Spécialité non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def specialite_delete(request, specialite_id):
+    if request.method != 'DELETE':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        specialite = Specialite.objects.get(id=specialite_id)
+        specialite.delete()
+        return JsonResponse({'success': True, 'message': 'Spécialité supprimée'})
+    except Specialite.DoesNotExist:
+        return JsonResponse({'error': 'Spécialité non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+
+# ===================== ARTISAN =====================
+
+@csrf_exempt
+def artisan_create(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        data = json.loads(request.body)
+        form = ArtisanCreationForm(data)
+        if form.is_valid():
+            artisan = form.save()
+            return JsonResponse({
+                'success': True,
+                'message': 'Artisan créé avec succès',
+                'id': artisan.id,
+                'user_id': artisan.user_id,
+                'description': artisan.description,
+                'adresse': artisan.adresse,
+                'latitude': artisan.latitude,
+                'longitude': artisan.longitude,
+                'is_verified': artisan.is_verified
+            }, status=201)
+        else:
+            return JsonResponse({'error': form.errors}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def artisan_list(request):
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        artisans = list(Artisan.objects.filter(is_deleted=False).values())
+        return JsonResponse({'artisans': artisans}, status=200)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def artisan_update(request, artisan_id):
+    if request.method != 'PUT':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        artisan = Artisan.objects.get(id=artisan_id)
+        data = json.loads(request.body)
+        form = ArtisanCreationForm(data, instance=artisan)
+        if form.is_valid():
+            artisan = form.save()
+            return JsonResponse({'success': True, 'message': 'Artisan mis à jour'})
+        else:
+            return JsonResponse({'error': form.errors}, status=400)
+    except Artisan.DoesNotExist:
+        return JsonResponse({'error': 'Artisan non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def artisan_delete(request, artisan_id):
+    if request.method != 'DELETE':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    try:
+        artisan = Artisan.objects.get(id=artisan_id)
+        artisan.is_deleted = True
+        artisan.save()
+        return JsonResponse({'success': True, 'message': 'Artisan marqué comme supprimé'})
+    except Artisan.DoesNotExist:
+        return JsonResponse({'error': 'Artisan non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ===================== ARTISAN KYC =====================
+
+@csrf_exempt
+def artisan_kyc_submit(request):
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    
+    try:
+        
+        artisan_id = request.POST.get('artisan')
+
+        if not artisan_id:
+            return JsonResponse({'error': 'L\'ID de l\'artisan est requis.'}, status=400)
+
+        try:
+            artisan = Artisan.objects.get(pk=artisan_id)
+        except Artisan.DoesNotExist:
+            return JsonResponse({'error': 'Artisan non trouvé.'}, status=404)
+            
+        # Vérification si un KYC existe déjà (si vous voulez l'empêcher)
+        if ArtisanKYC.objects.filter(artisan=artisan).exists():
+            return JsonResponse({'error': 'Les documents KYC pour cet artisan ont déjà été soumis.'}, status=400)
+
+
+        # 1. Instanciation du formulaire avec les données POST et les fichiers FILES
+        form = ArtisanKYCForm(request.POST, request.FILES)
+
+        if form.is_valid():
+            # 2. Sauvegarde des données et des fichiers
+            kyc = form.save()
+            
+            # 3. Retour de la réponse
+            return JsonResponse({
+                'success': True,
+                'message': 'Documents KYC soumis avec succès. En attente de vérification.',
+                'kyc_id': kyc.id,
+                'artisan_id': kyc.artisan_id,
+                'statut': kyc.statut,
+            }, status=201)
+        else:
+            # 4. Gestion des erreurs de formulaire
+            # Affiche les erreurs pour chaque champ
+            return JsonResponse({'error': 'Erreur de validation des données', 'details': form.errors}, status=400)
+
+    except Exception as e:
+        # Gestion des erreurs inattendues
+        return JsonResponse({'error': str(e)}, status=500)
