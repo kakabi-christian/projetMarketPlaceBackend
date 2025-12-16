@@ -1,10 +1,10 @@
 {% extends "admin_dashboard/base.html" %}
 {% load static %}
 
-{% block title %}Vérification KYC pour {{ user.prenom }} {{ user.nom }}{% endblock %}
+{% block title %}Vérification KYC pour {{ artisan_user.prenom }} {{ artisan_user.nom }}{% endblock %}
 
 {% block page_title %}
-    Dossier KYC pour {{ user.prenom }} {{ user.nom }}
+    Dossier KYC pour {{ artisan_user.prenom }} {{ artisan_user.nom }}
 {% endblock %}
 
 {% block content %}
@@ -12,8 +12,8 @@
     <div class="space-y-6">
 
         <div class="card bg-white shadow-xl p-6 border-b-4 
-            {% if kyc.statut == 'Approved' %} border-success 
-            {% elif kyc.statut == 'Rejected' %} border-error 
+            {% if kyc.statut == 'APPROVED' %} border-success 
+            {% elif kyc.statut == 'REJECTED' %} border-error 
             {% else %} border-warning {% endif %}">
             <div class="flex justify-between items-center">
                 <div>
@@ -24,8 +24,8 @@
                 <div class="text-right">
                     <p class="text-sm font-medium text-gray-500">Statut de la Vérification</p>
                     <span class="badge badge-lg font-bold text-white 
-                        {% if kyc.statut == 'Approved' %} badge-success 
-                        {% elif kyc.statut == 'Rejected' %} badge-error 
+                        {% if kyc.statut == 'APPROVED' %} badge-success 
+                        {% elif kyc.statut == 'REJECTED' %} badge-error 
                         {% else %} badge-warning {% endif %}">
                         {{ kyc.statut|upper }}
                     </span>
@@ -38,11 +38,14 @@
                 <i class="fas fa-user-circle mr-2"></i> Informations de l'Artisan
             </h4>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
-                <p><strong>Nom Complet:</strong> {{ user.prenom }} {{ user.nom }}</p>
-                <p><strong>Email:</strong> {{ user.email }}</p>
-                <p><strong>Rôle:</strong> {{ user.role }}</p>
-                <p><strong>Téléphone:</strong> {{ user.telephone|default:"N/A" }}</p>
-                <p><strong>Ville:</strong> {{ user.ville|default:"N/A" }}</p>
+                
+                {# CORRECTION APPLIQUÉE : Utilisation de artisan_user #}
+                <p><strong>Nom Complet:</strong> {{ artisan_user.prenom }} {{ artisan_user.nom }}</p>
+                <p><strong>Email:</strong> {{ artisan_user.email }}</p>
+                <p><strong>Rôle:</strong> {{ artisan_user.role }}</p>
+                <p><strong>Téléphone:</strong> {{ artisan_user.telephone|default:"N/A" }}</p>
+                <p><strong>Ville:</strong> {{ artisan_user.ville|default:"N/A" }}</p>
+                
                 <p><strong>Artisan Vérifié:</strong> 
                     <span class="font-bold {% if artisan.is_verified %}text-success{% else %}text-error{% endif %}">
                         {% if artisan.is_verified %}Oui{% else %}Non{% endif %}
@@ -56,13 +59,15 @@
                 <i class="fas fa-id-card-alt mr-2"></i> Documents Soumis
             </h4>
             
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {# J'ai réduit le grid à 2 colonnes car votre modèle ArtisanKYC n'a que 2 champs Image (photo_profil et cni) #}
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6"> 
 
                 <div class="col-span-1 border rounded-lg p-4 text-center bg-gray-50">
                     <p class="font-medium mb-3 text-lg">Photo de Profil (selfie)</p>
-                    {% if kyc.photo_profil_url %}
-                        <a href="{{ kyc.photo_profil_url }}" target="_blank" class="block w-full h-64 overflow-hidden rounded-lg shadow-md">
-                            <img src="{{ kyc.photo_profil_url }}" alt="Photo de Profil" class="object-cover w-full h-full transform hover:scale-105 transition duration-300">
+                    {# Utilisation de la variable photo_profil_url passée dans le contexte #}
+                    {% if photo_profil_url %} 
+                        <a href="{{ photo_profil_url }}" target="_blank" class="block w-full h-64 overflow-hidden rounded-lg shadow-md">
+                            <img src="{{ photo_profil_url }}" alt="Photo de Profil" class="object-cover w-full h-full transform hover:scale-105 transition duration-300">
                         </a>
                         <p class="mt-2 text-sm text-gray-500">Cliquez pour agrandir</p>
                     {% else %}
@@ -73,24 +78,11 @@
                 </div>
 
                 <div class="col-span-1 border rounded-lg p-4 text-center bg-gray-50">
-                    <p class="font-medium mb-3 text-lg">Carte d'Identité (Recto)</p>
-                    {% if kyc.cni_recto_url %}
-                        <a href="{{ kyc.cni_recto_url }}" target="_blank" class="block w-full h-64 overflow-hidden rounded-lg shadow-md">
-                            <img src="{{ kyc.cni_recto_url }}" alt="CNI Recto" class="object-cover w-full h-full transform hover:scale-105 transition duration-300">
-                        </a>
-                        <p class="mt-2 text-sm text-gray-500">Cliquez pour agrandir</p>
-                    {% else %}
-                        <div class="h-48 flex items-center justify-center bg-gray-200 rounded-lg text-gray-500">
-                            <i class="fas fa-times-circle fa-2x mr-2"></i> Document manquant
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="col-span-1 border rounded-lg p-4 text-center bg-gray-50">
-                    <p class="font-medium mb-3 text-lg">Carte d'Identité (Verso)</p>
-                    {% if kyc.cni_verso_url %}
-                        <a href="{{ kyc.cni_verso_url }}" target="_blank" class="block w-full h-64 overflow-hidden rounded-lg shadow-md">
-                            <img src="{{ kyc.cni_verso_url }}" alt="CNI Verso" class="object-cover w-full h-full transform hover:scale-105 transition duration-300">
+                    <p class="font-medium mb-3 text-lg">Carte d'Identité (CNI)</p>
+                    {# Utilisation de la variable cni_url passée dans le contexte #}
+                    {% if cni_url %}
+                        <a href="{{ cni_url }}" target="_blank" class="block w-full h-64 overflow-hidden rounded-lg shadow-md">
+                            <img src="{{ cni_url }}" alt="CNI" class="object-cover w-full h-full transform hover:scale-105 transition duration-300">
                         </a>
                         <p class="mt-2 text-sm text-gray-500">Cliquez pour agrandir</p>
                     {% else %}
@@ -114,10 +106,10 @@
                     {% csrf_token %}
                     <button type="submit" 
                         class="btn btn-success w-full text-white text-lg"
-                        {% if kyc.statut == 'Approved' %} disabled {% endif %}
+                        {% if kyc.statut == 'APPROVED' %} disabled {% endif %}
                         onclick="return confirm('Confirmez-vous l\'APPROBATION du dossier KYC de cet artisan ?')">
                         <i class="fas fa-check-circle mr-2"></i> 
-                        {% if kyc.statut == 'Approved' %} Déjà Approuvé {% else %} APPROUVER le Dossier {% endif %}
+                        {% if kyc.statut == 'APPROVED' %} Déjà Approuvé {% else %} APPROUVER le Dossier {% endif %}
                     </button>
                 </form>
 
@@ -125,16 +117,16 @@
                     {% csrf_token %}
                     <button type="submit" 
                         class="btn btn-error w-full text-white text-lg"
-                        {% if kyc.statut == 'Rejected' %} disabled {% endif %}
+                        {% if kyc.statut == 'REJECTED' %} disabled {% endif %}
                         onclick="return confirm('Confirmez-vous le REJET du dossier KYC de cet artisan ? Cela mettra son statut à Non Vérifié.')">
                         <i class="fas fa-times-circle mr-2"></i> 
-                        {% if kyc.statut == 'Rejected' %} Déjà Rejeté {% else %} REJETER le Dossier {% endif %}
+                        {% if kyc.statut == 'REJECTED' %} Déjà Rejeté {% else %} REJETER le Dossier {% endif %}
                     </button>
                 </form>
 
             </div>
             
-            {% if kyc.statut == 'Rejected' %}
+            {% if kyc.statut == 'REJECTED' %}
                 <div class="mt-4 text-sm text-gray-600 p-3 border border-dashed border-error rounded-lg bg-red-50">
                     <i class="fas fa-info-circle mr-1"></i> Note : Si ce dossier est rejeté, vous pouvez cliquer sur "Approuver le Dossier" pour annuler le rejet et valider l'artisan.
                 </div>

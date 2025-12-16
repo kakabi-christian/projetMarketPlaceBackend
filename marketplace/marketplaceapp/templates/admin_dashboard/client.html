@@ -1,0 +1,175 @@
+<!-- templates/admin_dashboard/client.html -->
+{% extends "admin_dashboard/base.html" %}
+
+{% block page_title %}
+<i class="fas fa-user-tie mr-2"></i> Gestion des Clients
+{% endblock %}
+
+{% block content %}
+
+<div class="flex justify-between items-center mb-6">
+    <h2 class="text-xl font-semibold">Liste des clients</h2>
+    <button id="add-client-btn" class="btn btn-primary btn-sm">
+        <i class="fas fa-plus mr-1"></i> Ajouter un client
+    </button>
+</div>
+
+<div class="overflow-x-auto">
+    <table class="table w-full bg-white shadow-md rounded-xl">
+        <thead class="bg-gray-100">
+            <tr>
+                <th>ID</th>
+                <th>Nom</th>
+                <th>Prénom</th>
+                <th>Email</th>
+                <th>Téléphone</th>
+                <th>Ville</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="clients-table-body">
+            <!-- Les clients seront injectés via JS -->
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal pour ajout/modification client -->
+<div id="client-modal" class="modal">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-4" id="modal-title">Ajouter un client</h3>
+    <form id="client-form" class="space-y-3">
+      <input type="text" name="nom" placeholder="Nom" class="input input-bordered w-full" required>
+      <input type="text" name="prenom" placeholder="Prénom" class="input input-bordered w-full" required>
+      <input type="email" name="email" placeholder="Email" class="input input-bordered w-full" required>
+      <input type="password" name="password" placeholder="Mot de passe" class="input input-bordered w-full">
+      <input type="text" name="telephone" placeholder="Téléphone" class="input input-bordered w-full">
+      <input type="text" name="ville" placeholder="Ville" class="input input-bordered w-full">
+      <div class="modal-action">
+        <button type="button" class="btn btn-ghost" id="close-modal-btn">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const apiListUrl = '{% url "list_clients" %}'; // URL pour récupérer la liste (GET)
+const apiCreateUrl = '{% url "register_client" %}'; // URL pour créer un client (POST) 
+
+// Chargement des clients
+function fetchClients(){
+    fetch(apiBase)
+    .then(res => res.json())
+    .then(data => {
+        const tbody = document.getElementById('clients-table-body');
+        tbody.innerHTML = '';
+        data.clients.forEach(client => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${client.id}</td>
+                <td>${client.nom}</td>
+                <td>${client.prenom}</td>
+                <td>${client.email}</td>
+                <td>${client.telephone || '-'}</td>
+                <td>${client.ville || '-'}</td>
+                <td class="space-x-2">
+                    <button class="btn btn-sm btn-warning edit-btn" data-id="${client.id}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-error delete-btn" data-id="${client.id}">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Boutons édition
+        document.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', () => openModal(btn.dataset.id));
+        });
+        // Boutons suppression
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => deleteClient(btn.dataset.id));
+        });
+    });
+}
+
+// Modal ajout/modif
+let editingClientId = null;
+function openModal(clientId=null){
+    editingClientId = clientId;
+    const modal = document.getElementById('client-modal');
+    modal.classList.add('modal-open');
+
+    const form = document.getElementById('client-form');
+    form.reset();
+    document.getElementById('modal-title').innerText = clientId ? 'Modifier le client' : 'Ajouter un client';
+
+    if(clientId){
+        fetch(`${apiListUrl}${clientId}/update/`)
+        .then(res => res.json())
+        .then(data => {
+            form.nom.value = data.nom;
+            form.prenom.value = data.prenom;
+            form.email.value = data.email;
+            form.telephone.value = data.telephone;
+            form.ville.value = data.ville;
+        });
+    }
+}
+
+// Fermer modal
+document.getElementById('close-modal-btn').addEventListener('click', () => {
+    document.getElementById('client-modal').classList.remove('modal-open');
+});
+
+// Soumission formulaire
+document.getElementById('client-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const form = e.target;
+    const data = {
+        nom: form.nom.value,
+        prenom: form.prenom.value,
+        email: form.email.value,
+        telephone: form.telephone.value,
+        ville: form.ville.value,
+    };
+    if(form.password.value) data.password = form.password.value;
+
+    const url = editingClientId ? `${apiListUrl}${editingClientId}/update/` : apiCreateUrl;
+    const method = editingClientId ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(resData => {
+        alert(resData.message || resData.error);
+        document.getElementById('client-modal').classList.remove('modal-open');
+        fetchClients();
+    });
+});
+
+// Suppression client
+function deleteClient(clientId){
+    if(confirm('Voulez-vous vraiment supprimer ce client ?')){
+        fetch(`${apiBase}${clientId}/delete/`, { method: 'DELETE' })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message || data.error);
+            fetchClients();
+        });
+    }
+}
+
+// Bouton ajout
+document.getElementById('add-client-btn').addEventListener('click', () => openModal());
+
+// Initialisation
+fetchClients();
+</script>
+
+{% endblock %}

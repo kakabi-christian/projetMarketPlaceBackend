@@ -117,3 +117,22 @@ CORS_ALLOW_METHODS = [
     "DELETE",
     "OPTIONS",
 ]
+# Static files
+STATIC_URL = 'static/'
+
+
+# =========================
+# CORS Settings
+# =========================
+# ... (votre configuration CORS existante) ...
+
+
+# =========================
+# MEDIA Files (Fichiers téléchargés par les utilisateurs)
+# =========================
+# L'URL utilisée pour accéder aux fichiers média (images KYC, etc.)
+MEDIA_URL = '/media/'
+
+# Le chemin physique complet où les fichiers média seront stockés
+# Cela crée un dossier 'media' à la racine de votre projet.
+MEDIA_ROOT = BASE_DIR / 'media'
