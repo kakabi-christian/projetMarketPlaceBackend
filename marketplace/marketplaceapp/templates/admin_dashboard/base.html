@@ -1,0 +1,128 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Tableau de Bord Admin{% endblock %}</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+    <style>
+        /* Définition d'une couleur d'accentation cohérente avec les exemples précédents */
+        :root {
+            --color-primary: #ff6b35; /* Votre orange vif */
+        }
+        .bg-primary-custom {
+            background-color: var(--color-primary);
+        }
+        .hover\:bg-primary-custom-dark:hover {
+            background-color: #e65a2c; /* Légèrement plus foncé */
+        }
+        .active-link {
+            background-color: var(--color-primary);
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="flex min-h-screen bg-gray-50">
+        
+        <div class="w-64 bg-[#1a202c] text-white flex flex-col p-4 shadow-lg flex-shrink-0">
+            
+            <div class="text-center mb-10 pt-4">
+                <h2 class="text-3xl font-extrabold text-[#ff6b35]">
+                    Admin Panel
+                </h2>
+                <p class="text-sm text-gray-400">Gestion Artisan</p>
+            </div>
+            
+            <ul class="menu p-0 text-base space-y-2">
+                
+                <li>
+                    <a href="{% url 'admin_dashboard' %}" 
+                       class="text-lg text-gray-200 hover:bg-primary-custom-dark
+                       {% if request.resolver_match.url_name == 'admin_dashboard' %} active-link {% endif %}">
+                        <i class="fas fa-home w-5 h-5"></i>
+                        Tableau de Bord
+                    </a>
+                </li>
+                
+                <li>
+                    <a href="{% url 'kyc_list' %}" 
+                       class="text-lg text-gray-200 hover:bg-primary-custom-dark
+                       {% if request.resolver_match.url_name == 'kyc_list' %} active-link {% endif %}">
+                        <i class="fas fa-file-check w-5 h-5"></i>
+                        Validation KYC 
+                        </a>
+                </li>
+                
+                <div class="divider text-gray-500">Général</div>
+                
+                <li>
+                    <a href="#" class="text-lg text-gray-200 hover:bg-primary-custom-dark">
+                        <i class="fas fa-users w-5 h-5"></i>
+                        Gestion des Artisans
+                    </a>
+                </li>
+                
+                <li>
+                    <a href="#" class="text-lg text-gray-200 hover:bg-primary-custom-dark">
+                        <i class="fas fa-user-tie w-5 h-5"></i>
+                        Gestion des Clients
+                    </a>
+                </li>
+            </ul>
+
+            <div class="mt-auto pt-8">
+                 <a href="{% url 'admin_logout' %}" 
+                    class="btn btn-outline btn-error w-full text-base border-gray-500 hover:bg-red-700">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Déconnexion
+                </a>
+            </div>
+            
+        </div>
+
+        <div class="flex-grow flex flex-col">
+            
+            <header class="navbar bg-white shadow-md px-8 py-3 sticky top-0 z-10">
+                <div class="flex-1">
+                    <h1 class="text-2xl font-semibold text-gray-700">
+                        {% block page_title %}<i class="fas fa-tachometer-alt mr-2"></i> Tableau de Bord{% endblock %}
+                    </h1>
+                </div>
+                <div class="flex-none">
+                    <div class="dropdown dropdown-end">
+                        <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
+                            <div class="w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                <i class="fas fa-user-shield text-xl text-gray-600"></i>
+                            </div>
+                        </div>
+                        <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-white rounded-box w-52">
+                            <li><a href="#">Profil ({{ request.user.email }})</a></li>
+                            <li><a href="{% url 'admin_logout' %}">Déconnexion</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </header>
+            
+            <main class="p-8 flex-grow">
+                {% block content %}
+                    {% endblock %}
+            </main>
+            
+            <footer class="footer footer-center p-4 bg-gray-200 text-base-content">
+                <aside>
+                    <p>Copyright © 2024 - Tous droits réservés.</p>
+                </aside>
+            </footer>
+        </div>
+    </div>
+</body>
+</html>

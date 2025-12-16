@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion Administrateur</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    
+    <style>
+        /* Personnalisation du style pour correspondre au thème (optionnel) */
+        .btn-primary {
+            background-color: #ff6b35; /* Couleur dominante de votre projet */
+            border-color: #ff6b35;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #e65a2c;
+            border-color: #e65a2c;
+        }
+    </style>
+</head>
+<body>
+    <div class="flex justify-center items-center min-h-screen bg-gray-100">
+
+        <div class="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl border border-gray-200">
+
+            <h2 class="text-3xl font-bold mb-6 text-center text-gray-700">
+                Administration 🔐
+            </h2>
+            <p class="text-center text-sm mb-6 text-gray-500">
+                Connectez-vous pour valider les KYC des artisans.
+            </p>
+
+            {% if error %}
+                <div role="alert" class="alert alert-error shadow-lg mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span>{{ error }}</span>
+                </div>
+            {% endif %}
+            
+            {% if messages %}
+                <div class="mb-4">
+                    {% for message in messages %}
+                        <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %} shadow-lg">
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+
+            <form method="POST" action="{% url 'admin_login' %}" novalidate>
+                {% csrf_token %}
+
+                <div class="mb-4">
+                    <label class="label font-semibold text-gray-700" for="email">
+                        <span class="label-text">Email</span>
+                    </label>
+                    <input type="email" id="email" name="email" placeholder="Adresse email de l'administrateur"
+                            class="input input-bordered w-full" required>
+                </div>
+
+                <div class="mb-4">
+                    <label class="label font-semibold text-gray-700" for="password">
+                        <span class="label-text">Mot de passe</span>
+                    </label>
+
+                    <div class="relative">
+                        <input type="password" name="password" id="password"
+                                placeholder="Votre mot de passe"
+                                class="input input-bordered w-full pr-12" required>
+
+                        <button type="button" onclick="togglePassword()" 
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                            <i id="eyeIcon" class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+
+                    <div class="text-right mt-2">
+                        </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full mt-6">
+                    Se connecter
+                </button>
+            </form>
+
+            </div>
+    </div>
+
+<script>
+    function togglePassword() {
+        let input = document.getElementById("password");
+        let icon = document.getElementById("eyeIcon");
+
+        if (input.type === "password") {
+            input.type = "text";
+            icon.classList.remove("fa-eye");
+            icon.classList.add("fa-eye-slash");
+        } else {
+            input.type = "password";
+            icon.classList.add("fa-eye");
+            icon.classList.remove("fa-eye-slash");
+        }
+    }
+</script>
+</body>
+</html>

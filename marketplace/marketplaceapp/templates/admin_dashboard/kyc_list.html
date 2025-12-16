@@ -1,0 +1,87 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block page_title %}
+    Validation des Dossiers KYC
+{% endblock %}
+
+{% block content %}
+
+    <div class="card bg-white shadow-xl p-6">
+        <h3 class="text-2xl font-bold mb-6 text-gray-700">
+            Dossiers Artisans à Vérifier
+        </h3>
+
+        {% if kyc_to_review %}
+            <div class="overflow-x-auto">
+                <table class="table w-full table-zebra">
+                    
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th>ID KYC</th>
+                            <th>Artisan</th>
+                            <th>Email Artisan</th>
+                            <th>Statut Actuel</th>
+                            <th>Date Soumission</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    
+                    <tbody>
+                        {% for kyc in kyc_to_review %}
+                            <tr>
+                                <td>#{{ kyc.id }}</td>
+                                
+                                <td>
+                                    <div class="flex items-center space-x-3">
+                                        <div class="font-bold">{{ kyc.artisan.user.prenom }} {{ kyc.artisan.user.nom }}</div>
+                                    </div>
+                                </td>
+                                
+                                <td>
+                                    {{ kyc.artisan.user.email }}
+                                </td>
+                                
+                                <td>
+                                    {% if kyc.statut == 'Pending' %}
+                                        <span class="badge badge-warning text-white">
+                                            <i class="fas fa-hourglass-half mr-1"></i> En Attente
+                                        </span>
+                                    {% elif kyc.statut == 'Approved' %}
+                                        <span class="badge badge-success text-white">
+                                            <i class="fas fa-check-circle mr-1"></i> Approuvé
+                                        </span>
+                                    {% elif kyc.statut == 'Rejected' %}
+                                        <span class="badge badge-error text-white">
+                                            <i class="fas fa-times-circle mr-1"></i> Rejeté
+                                        </span>
+                                    {% else %}
+                                        <span class="badge badge-ghost">{{ kyc.statut }}</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <td>
+                                    {{ kyc.created_at|date:"d M Y H:i" }}
+                                </td>
+
+                                <td>
+                                    <a href="{% url 'kyc_detail' kyc.id %}" class="btn btn-sm btn-info text-white">
+                                        <i class="fas fa-eye mr-1"></i> Détails
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                    
+                </table>
+            </div>
+
+        {% else %}
+            <div role="alert" class="alert alert-success mt-10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>Aucun nouveau dossier KYC à vérifier pour le moment. Tout est à jour !</span>
+            </div>
+        {% endif %}
+
+    </div>
+
+{% endblock content %}

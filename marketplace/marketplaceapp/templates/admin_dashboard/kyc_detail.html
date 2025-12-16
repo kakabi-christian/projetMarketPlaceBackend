@@ -1,0 +1,153 @@
+{% extends "admin_dashboard/base.html" %}
+{% load static %}
+
+{% block title %}Vérification KYC pour {{ user.prenom }} {{ user.nom }}{% endblock %}
+
+{% block page_title %}
+    Dossier KYC pour {{ user.prenom }} {{ user.nom }}
+{% endblock %}
+
+{% block content %}
+
+    <div class="space-y-6">
+
+        <div class="card bg-white shadow-xl p-6 border-b-4 
+            {% if kyc.statut == 'Approved' %} border-success 
+            {% elif kyc.statut == 'Rejected' %} border-error 
+            {% else %} border-warning {% endif %}">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="text-2xl font-bold text-gray-800">Dossier ID: #{{ kyc.id }}</h3>
+                    <p class="text-sm text-gray-600">Soumis le: {{ kyc.created_at|date:"d M Y H:i" }}</p>
+                </div>
+                
+                <div class="text-right">
+                    <p class="text-sm font-medium text-gray-500">Statut de la Vérification</p>
+                    <span class="badge badge-lg font-bold text-white 
+                        {% if kyc.statut == 'Approved' %} badge-success 
+                        {% elif kyc.statut == 'Rejected' %} badge-error 
+                        {% else %} badge-warning {% endif %}">
+                        {{ kyc.statut|upper }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card bg-white shadow-xl p-6">
+            <h4 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2">
+                <i class="fas fa-user-circle mr-2"></i> Informations de l'Artisan
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
+                <p><strong>Nom Complet:</strong> {{ user.prenom }} {{ user.nom }}</p>
+                <p><strong>Email:</strong> {{ user.email }}</p>
+                <p><strong>Rôle:</strong> {{ user.role }}</p>
+                <p><strong>Téléphone:</strong> {{ user.telephone|default:"N/A" }}</p>
+                <p><strong>Ville:</strong> {{ user.ville|default:"N/A" }}</p>
+                <p><strong>Artisan Vérifié:</strong> 
+                    <span class="font-bold {% if artisan.is_verified %}text-success{% else %}text-error{% endif %}">
+                        {% if artisan.is_verified %}Oui{% else %}Non{% endif %}
+                    </span>
+                </p>
+            </div>
+        </div>
+
+        <div class="card bg-white shadow-xl p-6">
+            <h4 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2">
+                <i class="fas fa-id-card-alt mr-2"></i> Documents Soumis
+            </h4>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                <div class="col-span-1 border rounded-lg p-4 text-center bg-gray-50">
+                    <p class="font-medium mb-3 text-lg">Photo de Profil (selfie)</p>
+                    {% if kyc.photo_profil_url %}
+                        <a href="{{ kyc.photo_profil_url }}" target="_blank" class="block w-full h-64 overflow-hidden rounded-lg shadow-md">
+                            <img src="{{ kyc.photo_profil_url }}" alt="Photo de Profil" class="object-cover w-full h-full transform hover:scale-105 transition duration-300">
+                        </a>
+                        <p class="mt-2 text-sm text-gray-500">Cliquez pour agrandir</p>
+                    {% else %}
+                        <div class="h-48 flex items-center justify-center bg-gray-200 rounded-lg text-gray-500">
+                            <i class="fas fa-times-circle fa-2x mr-2"></i> Document manquant
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="col-span-1 border rounded-lg p-4 text-center bg-gray-50">
+                    <p class="font-medium mb-3 text-lg">Carte d'Identité (Recto)</p>
+                    {% if kyc.cni_recto_url %}
+                        <a href="{{ kyc.cni_recto_url }}" target="_blank" class="block w-full h-64 overflow-hidden rounded-lg shadow-md">
+                            <img src="{{ kyc.cni_recto_url }}" alt="CNI Recto" class="object-cover w-full h-full transform hover:scale-105 transition duration-300">
+                        </a>
+                        <p class="mt-2 text-sm text-gray-500">Cliquez pour agrandir</p>
+                    {% else %}
+                        <div class="h-48 flex items-center justify-center bg-gray-200 rounded-lg text-gray-500">
+                            <i class="fas fa-times-circle fa-2x mr-2"></i> Document manquant
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="col-span-1 border rounded-lg p-4 text-center bg-gray-50">
+                    <p class="font-medium mb-3 text-lg">Carte d'Identité (Verso)</p>
+                    {% if kyc.cni_verso_url %}
+                        <a href="{{ kyc.cni_verso_url }}" target="_blank" class="block w-full h-64 overflow-hidden rounded-lg shadow-md">
+                            <img src="{{ kyc.cni_verso_url }}" alt="CNI Verso" class="object-cover w-full h-full transform hover:scale-105 transition duration-300">
+                        </a>
+                        <p class="mt-2 text-sm text-gray-500">Cliquez pour agrandir</p>
+                    {% else %}
+                        <div class="h-48 flex items-center justify-center bg-gray-200 rounded-lg text-gray-500">
+                            <i class="fas fa-times-circle fa-2x mr-2"></i> Document manquant
+                        </div>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+
+        <div class="card bg-white shadow-xl p-6">
+            <h4 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2">
+                <i class="fas fa-gavel mr-2"></i> Décision de Vérification
+            </h4>
+            
+            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+                
+                <form method="POST" action="{% url 'kyc_validate' kyc.id %}" class="md:flex-1 w-full">
+                    {% csrf_token %}
+                    <button type="submit" 
+                        class="btn btn-success w-full text-white text-lg"
+                        {% if kyc.statut == 'Approved' %} disabled {% endif %}
+                        onclick="return confirm('Confirmez-vous l\'APPROBATION du dossier KYC de cet artisan ?')">
+                        <i class="fas fa-check-circle mr-2"></i> 
+                        {% if kyc.statut == 'Approved' %} Déjà Approuvé {% else %} APPROUVER le Dossier {% endif %}
+                    </button>
+                </form>
+
+                <form method="POST" action="{% url 'kyc_reject' kyc.id %}" class="md:flex-1 w-full">
+                    {% csrf_token %}
+                    <button type="submit" 
+                        class="btn btn-error w-full text-white text-lg"
+                        {% if kyc.statut == 'Rejected' %} disabled {% endif %}
+                        onclick="return confirm('Confirmez-vous le REJET du dossier KYC de cet artisan ? Cela mettra son statut à Non Vérifié.')">
+                        <i class="fas fa-times-circle mr-2"></i> 
+                        {% if kyc.statut == 'Rejected' %} Déjà Rejeté {% else %} REJETER le Dossier {% endif %}
+                    </button>
+                </form>
+
+            </div>
+            
+            {% if kyc.statut == 'Rejected' %}
+                <div class="mt-4 text-sm text-gray-600 p-3 border border-dashed border-error rounded-lg bg-red-50">
+                    <i class="fas fa-info-circle mr-1"></i> Note : Si ce dossier est rejeté, vous pouvez cliquer sur "Approuver le Dossier" pour annuler le rejet et valider l'artisan.
+                </div>
+            {% endif %}
+
+        </div>
+
+    </div>
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'kyc_list' %}" class="btn btn-ghost">
+            <i class="fas fa-arrow-left mr-2"></i> Retour à la liste des KYC
+        </a>
+    </div>
+
+{% endblock content %}
