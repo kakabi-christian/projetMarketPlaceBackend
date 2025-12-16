@@ -27,5 +27,5 @@ urlpatterns = [
     path('artisan/delete/<int:artisan_id>/', artisan_delete, name='artisan_delete'),
 
     # ================== ARTISAN KYC (NOUVELLE ROUTE) ==================
-    path('artisan/kyc/submit/', artisan_kyc_submit, name='artisan_kyc_submit'), # <-- AJOUT ICI
+    path('artisan/kyc/submit/', artisan_kyc_submit, name='artisan_kyc_submit'), # <- AJOUT ICI
 ]
