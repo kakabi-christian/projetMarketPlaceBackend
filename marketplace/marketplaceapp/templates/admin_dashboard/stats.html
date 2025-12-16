@@ -1,165 +1,87 @@
-<!-- templates/admin_dashboard/stats.html -->
 {% extends "admin_dashboard/base.html" %}
 
 {% block page_title %}
-<i class="fas fa-chart-bar mr-2"></i> Statistiques
+<i class="fas fa-chart-bar mr-2"></i> Statistiques du Tableau de Bord
 {% endblock %}
 
 {% block content %}
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-    <!-- Left column: quick filters / mini-sidebar for stats -->
-    <aside class="lg:col-span-1 card bg-white shadow-xl p-6">
-        <h3 class="text-lg font-semibold mb-4">Filtres rapides</h3>
-        <div class="space-y-3">
-            <button class="w-full btn btn-outline btn-sm text-left" data-range="24h">Dernières 24h</button>
-            <button class="w-full btn btn-outline btn-sm text-left" data-range="7d">Derniers 7 jours</button>
-            <button class="w-full btn btn-outline btn-sm text-left" data-range="30d">Ce mois</button>
-            <button class="w-full btn btn-outline btn-sm text-left" id="custom-range-btn">Personnalisé</button>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    
+    <section class="lg:col-span-2 space-y-8">
+        
+        <!-- 📊 Cartes statistiques PLUS GRANDES -->
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8" id="stats-cards">
         </div>
 
-        <div class="divider mt-6"></div>
-
-        <h3 class="text-sm font-medium text-gray-500">Raccourcis</h3>
-        <ul class="mt-2 space-y-2 text-sm">
-            <li><a href="{% url 'admin_dashboard' %}" class="text-blue-600 hover:underline">Retour au tableau</a></li>
-            <li><a href="{% url 'kyc_list' %}" class="text-red-600 hover:underline">Dossiers KYC</a></li>
-        </ul>
-    </aside>
-
-    <!-- Right column: main stats -->
-    <section class="lg:col-span-2">
-        <!-- Stat cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6" id="stats-cards"></div>
-
-        <!-- Graphiques -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div class="card bg-white shadow-xl p-6">
-                <h3 class="text-lg font-semibold mb-4">Activité récente</h3>
-                <canvas id="activity-chart" class="h-56 w-full"></canvas>
-            </div>
-            <div class="card bg-white shadow-xl p-6">
-                <h3 class="text-lg font-semibold mb-4">KYC / Messages / Signalements</h3>
-                <canvas id="metrics-chart" class="h-56 w-full"></canvas>
-            </div>
-        </div>
-
-        <!-- Détails supplémentaires -->
-        <div class="card bg-white shadow-xl p-6">
-            <h3 class="text-lg font-semibold mb-4">Détails</h3>
-            <p class="text-sm text-gray-600" id="stats-details">Affichage détaillé des métriques et comparaisons.</p>
-        </div>
     </section>
-
+    
 </div>
 
-<!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
 const colorMap = {
-  blue: ['bg-blue-100','text-blue-500'],
-  purple: ['bg-purple-100','text-purple-500'],
-  red: ['bg-red-100','text-red-500'],
-  yellow: ['bg-yellow-100','text-yellow-500'],
-  teal: ['bg-teal-100','text-teal-500'],
-  orange: ['bg-orange-100','text-orange-500'],
-  pink: ['bg-pink-100','text-pink-500'],
-  green: ['bg-green-100','text-green-500']
+    blue: ['bg-blue-100','text-blue-500'],
+    purple: ['bg-purple-100','text-purple-500'],
+    red: ['bg-red-100','text-red-500'],
+    yellow: ['bg-yellow-100','text-yellow-500'],
+    teal: ['bg-teal-100','text-teal-500'],
+    orange: ['bg-orange-100','text-orange-500'],
+    pink: ['bg-pink-100','text-pink-500'],
+    green: ['bg-green-100','text-green-500']
 };
 
 function createCard(title, value, icon, color){
-  const [bg, text] = colorMap[color] || colorMap.blue;
-  const el = document.createElement('div');
-  el.className = 'card bg-white shadow-md rounded-xl p-6 hover:shadow-xl transition duration-300';
-  el.innerHTML = `
-    <div class="flex items-center justify-between">
-      <div>
-        <p class="text-gray-500 text-sm">${title}</p>
-        <h2 class="text-3xl font-bold text-gray-800 mt-1">${value}</h2>
-      </div>
-      <div class="p-4 rounded-full ${bg} ${text}">
-        <i class="fas ${icon} text-3xl"></i>
-      </div>
-    </div>
-  `;
-  return el;
+    const [bg, text] = colorMap[color] || colorMap.blue;
+    const el = document.createElement('div');
+    el.className = `
+        card bg-white shadow-lg rounded-2xl 
+        p-8 min-h-[160px] w-full
+        hover:shadow-2xl transition duration-300
+    `;
+    el.innerHTML = `
+        <div class="flex items-center justify-between h-full">
+            <div>
+                <p class="text-gray-500 text-base">${title}</p>
+                <h2 class="text-4xl font-bold text-gray-800 mt-2">${value}</h2>
+            </div>
+            <div class="p-6 rounded-full ${bg} ${text}">
+                <i class="fas ${icon} text-4xl"></i>
+            </div>
+        </div>
+    `;
+    return el;
 }
 
 let activityChart = null;
 let metricsChart = null;
 
 function loadStats(range='7d'){
-  fetch('/api/stats/dashboard/?range='+range)
-    .then(r => r.json())
-    .then(data => {
-      // ---- Stat cards ----
-      const container = document.getElementById('stats-cards');
-      container.innerHTML = '';
-      const cards = [
-        { title: "Utilisateurs", value: data.users.total, icon: "fa-users", color: "blue" },
-        { title: "Artisans", value: data.artisans.total, icon: "fa-user-tie", color: "purple" },
-        { title: "Artisans vérifiés", value: data.artisans.verified, icon: "fa-check-circle", color: "green" },
-        { title: "KYC en attente", value: data.kyc.pending, icon: "fa-hourglass-half", color: "red" },
-        { title: "Posts", value: data.posts.total, icon: "fa-image", color: "yellow" },
-        { title: "Messages", value: data.messages.total_messages, icon: "fa-envelope", color: "teal" },
-        { title: "Messages non lus", value: data.messages.unread_messages, icon: "fa-envelope-open-text", color: "orange" },
-        { title: "Signalements", value: data.reports.pending, icon: "fa-flag", color: "pink" }
-      ];
-      cards.forEach(c => container.appendChild(createCard(c.title, c.value, c.icon, c.color)));
+    fetch('/api/stats/dashboard/?range='+range)
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('stats-cards');
+            container.innerHTML = '';
 
-      // ---- Graphique activité ----
-      const ctx1 = document.getElementById('activity-chart').getContext('2d');
-      const labels = data.activity.map(item => item.date);
-      const values = data.activity.map(item => item.count);
+            const cards = [
+                { title: "Utilisateurs", value: data.users.total, icon: "fa-users", color: "blue" },
+                { title: "Artisans", value: data.artisans.total, icon: "fa-user-tie", color: "purple" },
+                { title: "Artisans vérifiés", value: data.artisans.verified, icon: "fa-check-circle", color: "green" },
+                { title: "KYC en attente", value: data.kyc.pending, icon: "fa-hourglass-half", color: "red" },
+                { title: "Posts", value: data.posts.total, icon: "fa-image", color: "yellow" },
+                { title: "Messages", value: data.messages.total_messages, icon: "fa-envelope", color: "teal" },
+                { title: "Messages non lus", value: data.messages.unread_messages, icon: "fa-envelope-open-text", color: "orange" },
+                { title: "Signalements", value: data.reports.pending, icon: "fa-flag", color: "pink" }
+            ];
 
-      if(activityChart) activityChart.destroy();
-      activityChart = new Chart(ctx1, {
-        type: 'line',
-        data: { labels: labels, datasets: [{ label: 'Activité quotidienne', data: values, borderColor: '#ff6b35', backgroundColor: 'rgba(255,107,53,0.2)', tension: 0.3, fill: true }]},
-        options: { responsive:true, plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{beginAtZero:true,grid:{color:'#f0f0f0'}} } }
-      });
-
-      // ---- Graphique KYC / Messages / Signalements ----
-      const ctx2 = document.getElementById('metrics-chart').getContext('2d');
-      if(metricsChart) metricsChart.destroy();
-      metricsChart = new Chart(ctx2, {
-        type: 'bar',
-        data: {
-          labels: ['KYC en attente','Messages non lus','Signalements'],
-          datasets:[{
-            label: 'Nombre',
-            data: [data.kyc.pending, data.messages.unread_messages, data.reports.pending],
-            backgroundColor: ['#f87171','#fb923c','#facc15']
-          }]
-        },
-        options: { responsive:true, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, grid:{color:'#f0f0f0'}} } }
-      });
-
-      // ---- Details mise à jour ----
-      const details = document.getElementById('stats-details');
-      if(details) details.innerText = `Mise à jour : ${new Date().toLocaleString()}`;
-    })
-    .catch(err => {
-      console.error('Erreur stats :', err);
-      const details = document.getElementById('stats-details');
-      if(details) details.innerText = 'Impossible de charger les données.';
-    });
+            cards.forEach(c =>
+                container.appendChild(createCard(c.title, c.value, c.icon, c.color))
+            );
+        });
 }
 
-document.addEventListener('DOMContentLoaded', function(){
-  loadStats('7d');
-
-  document.querySelectorAll('[data-range]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const range = btn.getAttribute('data-range');
-      loadStats(range);
-      document.querySelectorAll('[data-range]').forEach(b => b.classList.remove('active-link'));
-      btn.classList.add('active-link');
-    });
-  });
-});
+document.addEventListener('DOMContentLoaded', () => loadStats('7d'));
 </script>
 
 {% endblock %}

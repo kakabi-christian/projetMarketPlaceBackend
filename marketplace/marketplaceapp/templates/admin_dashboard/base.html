@@ -71,7 +71,12 @@
                     </a>
                 </li>
                 
-              
+                <!-- <li>
+                    <a href="#" class="text-lg text-gray-200 hover:bg-primary-custom-dark">
+                        <i class="fas fa-user-tie w-5 h-5"></i>
+                        Gestion des Clients
+                    </a>
+                </li> -->
                 <li>
                 <li>
                     <a href="{% url 'list_clients' %}" 
@@ -83,9 +88,9 @@
 
                 <li>
                     <a href="{% url 'admin_stats' %}"
-                        class="text-lg text-gray-200 hover:bg-primary-custom-dark
-                        {% if request.resolver_match.url_name == 'admin_stats' %} active-link {% endif %}">
-                            <i class="fas fa-chart-bar w-5 h-5"></i> Statistiques
+                    class="text-lg text-gray-200 hover:bg-primary-custom-dark
+                    {% if request.resolver_match.url_name == 'admin_stats' %} active-link {% endif %}">
+                        <i class="fas fa-chart-bar w-5 h-5"></i> Statistiques
                     </a>
                 </li>
 

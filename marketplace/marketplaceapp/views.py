@@ -1442,5 +1442,18 @@ def admin_stats(request):
 
 # views.py
 def admin_clients(request):
-    clients = Client.objects.all()  # ou ta logique pour récupérer les clients
-    return render(request, "admin_dashboard/client.html", {"clients": clients})
+    clients = User.objects.filter(
+        role='CLIENT',
+        is_deleted=False
+    ).values(
+        'id',
+        'nom',
+        'prenom',
+        'email',
+        'telephone',
+        'ville'
+    )
+
+    return JsonResponse({
+        "clients": list(clients)
+    })
