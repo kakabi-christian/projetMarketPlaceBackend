@@ -457,40 +457,70 @@ def artisan_create(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+from django.db.models import Q
+from .models import Conversation, Artisan
+
+from django.db.models import Q
+
+from django.db.models import Q
 
 @csrf_exempt
 def artisan_list(request):
     if request.method != 'GET':
         return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    
     try:
-        # Récupérer les artisans avec les informations de l'utilisateur associé
-        artisans = Artisan.objects.filter(is_deleted=False).select_related('user')
+        user_id_param = request.GET.get('user_id')
+        query = Artisan.objects.filter(is_deleted=False).select_related('user')
         
+        if user_id_param:
+            try:
+                # 1. Conversion forcée en entier pour éviter les erreurs de type str vs int
+                target_id = int(user_id_param)
+                
+                # 2. Récupérer les IDs des gens avec qui l'utilisateur a discuté
+                # On récupère directement les valeurs en base de données
+                u1_list = list(Conversation.objects.filter(user2_id=target_id).values_list('user1_id', flat=True))
+                u2_list = list(Conversation.objects.filter(user1_id=target_id).values_list('user2_id', flat=True))
+                
+                interlocutor_ids = list(set(u1_list + u2_list))
+                
+                print(f"--- DEBUG FILTRAGE ---")
+                print(f"Utilisateur connecté ID: {target_id}")
+                print(f"IDs trouvés dans les conversations: {interlocutor_ids}")
+
+                # 3. FILTRE : Uniquement les artisans dont le USER_ID est dans cette liste
+                query = query.filter(user_id__in=interlocutor_ids)
+                
+                print(f"Nombre d'artisans après filtrage: {query.count()}")
+                print(f"-----------------------")
+
+            except ValueError:
+                return JsonResponse({'error': 'ID utilisateur invalide'}, status=400)
+
+        # 4. Formatage de la réponse
         artisans_data = []
-        for artisan in artisans:
-            artisan_dict = {
+        for artisan in query:
+            artisans_data.append({
                 'id': artisan.id,
-                'user_id': artisan.user.id,
-                'nom': artisan.user.nom,  # 👈 Ajout du nom
-                'prenom': artisan.user.prenom,  # 👈 Ajout du prénom
-                'email': artisan.user.email,
-                'telephone': artisan.user.telephone,
-                'ville': artisan.user.ville,
+                'user_id': artisan.user.id, # Flat pour ton modèle Flutter
+                'user': { # Imbriqué au cas où
+                    'id': artisan.user.id,
+                    'nom': artisan.user.nom,
+                    'prenom': artisan.user.prenom,
+                },
+                'nom': artisan.user.nom,
+                'prenom': artisan.user.prenom,
                 'description': artisan.description,
                 'adresse': artisan.adresse,
-                'latitude': artisan.latitude,
-                'longitude': artisan.longitude,
                 'is_verified': artisan.is_verified,
-                'verified_at': artisan.verified_at.isoformat() if artisan.verified_at else None,
-                'created_at': artisan.created_at.isoformat(),
-                'updated_at': artisan.updated_at.isoformat(),
-            }
-            artisans_data.append(artisan_dict)
+            })
         
         return JsonResponse({'artisans': artisans_data}, status=200)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
 
+    except Exception as e:
+        print(f"ERREUR CRITIQUE: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
 @csrf_exempt
 def artisan_update(request, artisan_id):
     if request.method != 'PUT':
@@ -758,29 +788,33 @@ def kyc_reject(request, kyc_id):
     return redirect('kyc_list')
 
 # ===================== POSTS (API) =====================
-
 @csrf_exempt
 def post_create(request):
     """
-    Créer un nouveau post (artisan uniquement)
+    Créer un nouveau post (artisan uniquement).
+    Supporte l'envoi de l'ID Artisan ou de l'ID User lié.
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
     
     try:
-        # Récupérer l'artisan_id depuis le corps de la requête
-        artisan_id = request.POST.get('artisan_id')
+        # 1. Récupérer l'ID envoyé par Flutter
+        artisan_id_raw = request.POST.get('artisan_id')
         
-        if not artisan_id:
-            return JsonResponse({'error': 'L\'ID de l\'artisan est requis'}, status=400)
+        if not artisan_id_raw:
+            return JsonResponse({'error': "L'ID de l'artisan est requis"}, status=400)
         
-        # Vérifier que l'artisan existe
-        try:
-            artisan = Artisan.objects.get(pk=artisan_id, is_deleted=False)
-        except Artisan.DoesNotExist:
+        # 2. Recherche flexible de l'artisan (PK ou User_ID)
+        # Cela évite l'erreur "Artisan non trouvé" si Flutter envoie l'ID utilisateur
+        artisan = Artisan.objects.filter(
+            Q(pk=artisan_id_raw) | Q(user_id=artisan_id_raw),
+            is_deleted=False
+        ).first()
+        
+        if not artisan:
             return JsonResponse({'error': 'Artisan non trouvé'}, status=404)
         
-        # Créer le post
+        # 3. Récupération des données du formulaire
         titre = request.POST.get('titre')
         description = request.POST.get('description', '')
         media_url = request.FILES.get('media_url')
@@ -792,10 +826,9 @@ def post_create(request):
         if not media_url:
             return JsonResponse({'error': 'Le média est requis'}, status=400)
         
-        # Calculer la taille du fichier
-        media_size = media_url.size / (1024 * 1024)  # Taille en MB
+        # 4. Calcul de la taille (en MB) et création du post
+        media_size = media_url.size / (1024 * 1024)
         
-        # Créer le post
         post = Post.objects.create(
             artisan=artisan,
             titre=titre,
@@ -806,6 +839,7 @@ def post_create(request):
             media_mime=media_url.content_type
         )
         
+        # 5. Réponse structurée pour Flutter
         return JsonResponse({
             'success': True,
             'message': 'Post créé avec succès',
@@ -822,35 +856,37 @@ def post_create(request):
         }, status=201)
         
     except Exception as e:
+        # Log de l'erreur dans la console pour le debug
+        print(f"Erreur création post: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 @csrf_exempt
 def post_list(request):
     """
-    Lister tous les posts ou filtrer par artisan (avec pagination)
+    Lister tous les posts ou filtrer par artisan (avec pagination).
+    Supporte le filtrage par ID Artisan ou ID User.
     """
     if request.method != 'GET':
         return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
     
     try:
-        # 1. Récupérer les paramètres de filtrage et pagination
-        artisan_id = request.GET.get('artisan_id') # Récupère l'id si envoyé depuis Flutter
+        artisan_id = request.GET.get('artisan_id')
         page = int(request.GET.get('page', 1))
         page_size = int(request.GET.get('page_size', 10))
 
-        # 2. Préparer la requête de base
-        # select_related('artisan__user') optimise pour récupérer les infos de l'utilisateur d'un coup
         queryset = Post.objects.filter(is_deleted=False).select_related('artisan__user')
 
-        # 3. FILTRAGE : Si l'artisan_id est fourni, on filtre les posts
+        # --- FIX APPLIQUÉ ICI ---
         if artisan_id:
-            # Note : on filtre sur l'id de l'objet Artisan (lié au User)
-            queryset = queryset.filter(artisan_id=artisan_id)
+            # On filtre si l'ID correspond à l'Artisan PK 
+            # OU si l'ID correspond à l'User ID lié à l'Artisan
+            queryset = queryset.filter(
+                Q(artisan_id=artisan_id) | Q(artisan__user_id=artisan_id)
+            )
+        # ------------------------
 
-        # 4. Ordonner par date de création
         posts = queryset.order_by('-created_at')
         
-        # 5. Calcul des limites de pagination
         start = (page - 1) * page_size
         end = start + page_size
         
@@ -879,12 +915,12 @@ def post_list(request):
             'posts': posts_data,
             'page': page,
             'page_size': page_size,
-            'total': posts.count()
+            'total': queryset.count() # Correction ici pour le total filtré
         }, status=200)
         
     except Exception as e:
+        print(f"Erreur post_list: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-    
 @csrf_exempt
 def post_detail(request, post_id):
     """
@@ -1609,14 +1645,8 @@ def admin_clients(request):
     return JsonResponse({
         "clients": list(clients)
     })
-
-
 @csrf_exempt
 def post_like(request, post_id):
-    """
-    Bascule (toggle) l'état "Liké" pour un post par un utilisateur.
-    Si le like existe, il est supprimé (unlike). S'il n'existe pas, il est créé (like).
-    """
     if request.method != 'POST':
         return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
     
@@ -1625,44 +1655,38 @@ def post_like(request, post_id):
         user_id = data.get('user_id')
         
         if not user_id:
-            return JsonResponse({'error': 'ID utilisateur requis'}, status=400)
-            
+            return JsonResponse({'error': 'L\'ID de l\'utilisateur est requis'}, status=400)
+        
         post = Post.objects.get(pk=post_id, is_deleted=False)
-        user = User.objects.get(pk=user_id, is_deleted=False)
+        user = User.objects.get(pk=user_id)
         
-        # Vérifie si l'utilisateur a déjà liké ce post
-        like_exists = PostLike.objects.filter(post=post, user=user).first()
+        # On cherche le like
+        like_queryset = PostLike.objects.filter(post=post, user=user)
         
-        action = ""
-        
-        if like_exists:
-            # UNLIKE: Supprimer le like existant
-            like_exists.delete()
-            post.likes_count -= 1
-            action = "unliked"
+        if like_queryset.exists():
+            # Si il existe, on le supprime (UNLIKE)
+            like_queryset.delete()
+            liked = False
         else:
-            # LIKE: Créer un nouveau like
-            PostLike.objects.create(
-                post=post,
-                user=user,
-                type_like='LIKE' # En supposant que le type par défaut est LIKE
-            )
-            post.likes_count += 1
-            action = "liked"
+            # Si il n'existe pas, on le crée (LIKE)
+            # update_or_create évite les erreurs si deux clics arrivent en même temps
+            PostLike.objects.update_or_create(post=post, user=user)
+            liked = True
         
+        # --- SOLUTION RADICALE ---
+        # On ne fait pas +1 ou -1. On COMPTE physiquement les likes dans la table.
+        # C'est la seule façon d'avoir un chiffre 100% exact.
+        vrai_total = PostLike.objects.filter(post=post).count()
+        
+        # On met à jour le cache du post
+        post.likes_count = vrai_total
         post.save()
         
         return JsonResponse({
             'success': True,
-            'message': f"Post {action} avec succès.",
-            'action': action,
-            'is_liked': action == 'liked',
-            'likes_count': post.likes_count
+            'liked': liked,
+            'likes_count': vrai_total
         }, status=200)
-            
-    except Post.DoesNotExist:
-        return JsonResponse({'error': 'Post non trouvé'}, status=404)
-    except User.DoesNotExist:
-        return JsonResponse({'error': 'Utilisateur non trouvé'}, status=404)
+        
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
