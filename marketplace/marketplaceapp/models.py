@@ -3,6 +3,8 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.text import slugify
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 import uuid
 
 User = get_user_model()
@@ -27,6 +29,7 @@ class Categorie(models.Model):
 
     def __str__(self):
         return self.nom_categorie
+
 
 class Rubrique(models.Model):
     categorie = models.ForeignKey(
@@ -53,6 +56,7 @@ class Rubrique(models.Model):
     def __str__(self):
         return f"{self.categorie.nom_categorie} - {self.nom_rubrique}"
 
+
 class Artisan(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
@@ -69,6 +73,8 @@ class Artisan(models.Model):
     categorie = models.ForeignKey(
         Categorie,
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name='artisans'
     )
     rubrique = models.ForeignKey(
@@ -131,8 +137,6 @@ class Artisan(models.Model):
     def __str__(self):
         return f"{self.nom_entreprise} - {self.ville}"
 
-# models.py
-from django.db import models
 
 class Produit(models.Model):
     """Modèle pour les produits/services des artisans"""
@@ -198,6 +202,8 @@ class ImageProduit(models.Model):
             if storage.exists(self.image.name):
                 storage.delete(self.image.name)
         super().delete(*args, **kwargs)
+
+
 class ArtisanImage(models.Model):
     artisan = models.ForeignKey(
         Artisan,
@@ -214,6 +220,7 @@ class ArtisanImage(models.Model):
     def __str__(self):
         return f"Image {self.artisan.nom_entreprise}"
 
+
 class StatistiqueArtisan(models.Model):
     artisan = models.OneToOneField(
         Artisan,
@@ -226,3 +233,152 @@ class StatistiqueArtisan(models.Model):
 
     def __str__(self):
         return f"Stats {self.artisan.nom_entreprise}"
+
+
+class UserProfile(models.Model):
+    """Profil utilisateur avec rôle"""
+    ROLE_CHOICES = [
+        ('client', 'Client'),
+        ('artisan', 'Artisan'),
+        ('admin', 'Administrateur'),
+    ]
+    
+    user = models.OneToOneField(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='profile'
+    )
+    role = models.CharField(
+        max_length=10, 
+        choices=ROLE_CHOICES, 
+        default='client'
+    )
+    telephone = models.CharField(max_length=20, blank=True, null=True)
+    photo = models.ImageField(
+        upload_to='users/photos/', 
+        blank=True, 
+        null=True
+    )
+    date_naissance = models.DateField(blank=True, null=True)
+    adresse = models.CharField(max_length=255, blank=True, null=True)
+    ville = models.CharField(max_length=100, blank=True, null=True)
+    pays = models.CharField(max_length=100, default='Cameroun')
+    
+    profile_artisan_complete = models.BooleanField(default=False)
+    
+    date_creation = models.DateTimeField(auto_now_add=True)
+    date_modification = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Profil Utilisateur'
+        verbose_name_plural = 'Profils Utilisateurs'
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.get_role_display()}"
+    
+    @property
+    def is_artisan(self):
+        return self.role == 'artisan'
+    
+    @property
+    def is_client(self):
+        return self.role == 'client'
+    
+    @property
+    def is_admin(self):
+        return self.role == 'admin'
+
+
+class ProfilClient(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='client_profile')
+    
+    # ✅ RELATION MANY-TO-MANY AVEC CATÉGORIES
+    categories_preferees = models.ManyToManyField(
+        'Categorie', 
+        blank=True,
+        related_name='clients_interesses'
+    )
+    
+    ville_preference = models.CharField(max_length=100, blank=True)
+    pays_preference = models.CharField(max_length=100, default='Cameroun')
+    rayon_recherche_km = models.IntegerField(default=10)
+    budget_min = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    budget_max = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    bio = models.TextField(blank=True)
+    recevoir_nouveautes = models.BooleanField(default=True)
+    recevoir_promotions = models.BooleanField(default=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+    date_modification = models.DateTimeField(auto_now=True)
+    
+    @property
+    def nombre_favoris(self):
+        return Favori.objects.filter(client=self.user).count()
+    
+# ✅ N'OUBLIEZ PAS le modèle Favori aussi :
+class Favori(models.Model):
+    """Système de favoris pour que les clients sauvegardent leurs artisans préférés"""
+    client = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='mes_favoris'
+    )
+    artisan = models.ForeignKey(
+        Artisan,
+        on_delete=models.CASCADE,
+        related_name='favoris_recus'
+    )
+    date_ajout = models.DateTimeField(auto_now_add=True)
+    note_personnelle = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        unique_together = ['client', 'artisan']
+        ordering = ['-date_ajout']
+        verbose_name = 'Favori'
+        verbose_name_plural = 'Favoris'
+    
+    def __str__(self):
+        return f"{self.client.username} ♥ {self.artisan.nom_entreprise}"
+
+class Conversation(models.Model):
+    """Conversation entre un client et un artisan"""
+    client = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversations_client')
+    artisan = models.ForeignKey(Artisan, on_delete=models.CASCADE, related_name='conversations')
+    date_creation = models.DateTimeField(auto_now_add=True)
+    derniere_activite = models.DateTimeField(auto_now=True)
+    
+    # Statut de lecture
+    client_non_lu = models.IntegerField(default=0)  # Nombre de messages non lus par le client
+    artisan_non_lu = models.IntegerField(default=0)  # Nombre de messages non lus par l'artisan
+    
+    class Meta:
+        unique_together = ('client', 'artisan')
+        ordering = ['-derniere_activite']
+    
+    def __str__(self):
+        return f"Conv: {self.client.username} <-> {self.artisan.nom_entreprise}"
+
+
+class Message(models.Model):
+    """Message dans une conversation"""
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages')
+    expediteur = models.ForeignKey(User, on_delete=models.CASCADE, related_name='messages_envoyes')
+    contenu = models.TextField()
+    date_envoi = models.DateTimeField(auto_now_add=True)
+    lu = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['date_envoi']
+    
+    def __str__(self):
+        return f"{self.expediteur.username}: {self.contenu[:50]}"
+    
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Mettre à jour le compteur de non-lus
+        conv = self.conversation
+        if self.expediteur == conv.client:
+            conv.artisan_non_lu += 1
+        else:
+            conv.client_non_lu += 1
+        conv.derniere_activite = self.date_envoi
+        conv.save()

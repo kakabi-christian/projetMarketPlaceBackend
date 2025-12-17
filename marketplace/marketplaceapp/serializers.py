@@ -1,12 +1,15 @@
+# serializers.py - VERSION COMPLÈTE FINALE
+
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from rest_framework import serializers
-from .models import Produit, ImageProduit
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+
 from .models import (
     Categorie, Rubrique, Artisan,
     Produit, ArtisanImage, StatistiqueArtisan,
+    ImageProduit, UserProfile, ProfilClient, Conversation,Message
 )
-
 
 class CategorieSerializer(serializers.ModelSerializer):
     class Meta:
@@ -15,18 +18,13 @@ class CategorieSerializer(serializers.ModelSerializer):
 
 
 class RubriqueSerializer(serializers.ModelSerializer):
-    categorie_nom = serializers.CharField(
-        source='categorie.nom_categorie', read_only=True
-    )
-
+    categorie_nom = serializers.CharField(source='categorie.nom_categorie', read_only=True)
     class Meta:
         model = Rubrique
-        fields = ['id', 'nom_rubrique', 'description',
-                  'categorie', 'categorie_nom', 'actif']
+        fields = ['id', 'nom_rubrique', 'description', 'categorie', 'categorie_nom', 'actif']
 
 
 class ImageProduitSerializer(serializers.ModelSerializer):
-    """Serializer pour les images de produits"""
     class Meta:
         model = ImageProduit
         fields = ['id', 'image', 'ordre', 'date_ajout']
@@ -34,132 +32,63 @@ class ImageProduitSerializer(serializers.ModelSerializer):
 
 
 class ProduitSerializer(serializers.ModelSerializer):
-    """Serializer pour la lecture des produits"""
     images = ImageProduitSerializer(many=True, read_only=True)
     categorie = serializers.SerializerMethodField()
     artisan_nom = serializers.CharField(source='artisan.nom_entreprise', read_only=True)
     
     class Meta:
         model = Produit
-        fields = [
-            'id', 'nom', 'description', 'prix', 
-            'categorie', 'disponible', 
-            'date_creation', 'date_modification',
-            'images', 'artisan', 'artisan_nom'
-        ]
+        fields = ['id', 'nom', 'description', 'prix', 'categorie', 'disponible', 
+                  'date_creation', 'date_modification', 'images', 'artisan', 'artisan_nom']
         read_only_fields = ['date_creation', 'date_modification', 'artisan']
 
     def get_categorie(self, obj):
-        """Retourne l'objet catégorie complet"""
         if obj.categorie:
-            return {
-                'id': obj.categorie.id,
-                'nom_categorie': obj.categorie.nom_categorie
-            }
+            return {'id': obj.categorie.id, 'nom_categorie': obj.categorie.nom_categorie}
         return None
 
 
 class ProduitCreateUpdateSerializer(serializers.ModelSerializer):
-    """Serializer pour créer/modifier des produits avec upload d'images"""
-    
     class Meta:
         model = Produit
-        fields = [
-            'id', 'nom', 'description', 'prix',
-            'categorie', 'disponible'
-        ]
-        # ✅ IMPORTANT : Ne pas inclure 'artisan' ici car il est passé dans la vue
+        fields = ['id', 'nom', 'description', 'prix', 'categorie', 'disponible']
 
     def validate_prix(self, value):
-        """Valide que le prix est positif"""
         if value <= 0:
             raise serializers.ValidationError("Le prix doit être supérieur à 0")
         return value
 
     def create(self, validated_data):
-        """Crée un produit avec gestion des images"""
         request = self.context.get('request')
-        
-        # Crée le produit (l'artisan est passé via save(artisan=...))
         produit = Produit.objects.create(**validated_data)
-        
-        # ✅ CORRECTION : Gère les images APRÈS la création
         if request and hasattr(request, 'FILES'):
-            print(f"DEBUG - FILES detected: {request.FILES.keys()}")
             self._handle_image_upload(produit, request.FILES)
-        else:
-            print("DEBUG - No FILES in request")
-        
         return produit
 
     def update(self, instance, validated_data):
-        """Met à jour un produit avec gestion des images"""
         request = self.context.get('request')
-        
-        # Met à jour les champs du produit
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        
-        # Gère les nouvelles images si présentes
         if request and hasattr(request, 'FILES'):
-            print(f"DEBUG - FILES detected in update: {request.FILES.keys()}")
             self._handle_image_upload(instance, request.FILES)
-        
         return instance
 
     def _handle_image_upload(self, produit, files):
-        """
-        Gère l'upload des images
-        Le frontend envoie les images avec des clés comme: images[0]image, images[1]image
-        """
-        print("=" * 60)
-        print(f"🔍 DEBUG - Handling image upload pour produit ID: {produit.id}")
-        print(f"📁 Files keys reçues: {list(files.keys())}")
-        print(f"📁 Nombre de fichiers: {len(files)}")
-        
-        # Affiche les détails de chaque fichier
-        for key, file in files.items():
-            print(f"   - {key}: {file.name} ({file.size} bytes)")
-        
-        # Récupère l'ordre maximum actuel
         current_max_ordre = produit.images.count()
-        print(f"📊 Ordre max actuel: {current_max_ordre}")
-        
-        # ✅ CORRECTION : Cherche toutes les clés qui contiennent 'image'
-        image_keys = []
-        for key in files.keys():
-            if 'image' in key.lower():
-                image_keys.append(key)
-                print(f"   ✅ Clé valide trouvée: {key}")
-        
-        print(f"✅ Total: {len(image_keys)} image(s) à uploader")
-        
-        # Crée les images
+        image_keys = [key for key in files.keys() if 'image' in key.lower()]
         for index, key in enumerate(sorted(image_keys)):
-            image_file = files[key]
-            ordre = current_max_ordre + index
-            print(f"📸 Création ImageProduit: {image_file.name} (ordre={ordre})")
-            
-            img = ImageProduit.objects.create(
-                produit=produit,
-                image=image_file,
-                ordre=ordre
-            )
-            print(f"   ✅ ImageProduit créée avec ID: {img.id}, URL: {img.image.url}")
-        
-        final_count = produit.images.count()
-        print(f"🎉 Total images pour produit {produit.id}: {final_count}")
-        print("=" * 60)
+            ImageProduit.objects.create(produit=produit, image=files[key], ordre=current_max_ordre + index)
 
     def to_representation(self, instance):
-        """Utilise ProduitSerializer pour la réponse"""
         return ProduitSerializer(instance, context=self.context).data
+
+
 class ArtisanImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ArtisanImage
         fields = ['id', 'image', 'type_image', 'date_upload']
-    read_only_fields = ['date_upload']
+        read_only_fields = ['date_upload']
 
 
 class StatistiqueArtisanSerializer(serializers.ModelSerializer):
@@ -175,11 +104,8 @@ class ArtisanListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Artisan
-        fields = [
-            'id', 'nom_entreprise', 'logo', 'description',
-            'categorie', 'rubrique', 'ville', 'pays',
-            'actif', 'nombre_produits', 'has_location'
-        ]
+        fields = ['id', 'nom_entreprise', 'logo', 'description', 'categorie', 'rubrique', 
+                  'ville', 'pays', 'actif', 'nombre_produits', 'has_location']
 
     def get_nombre_produits(self, obj):
         return obj.produits.filter(disponible=True).count()
@@ -194,41 +120,29 @@ class ArtisanDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Artisan
-        fields = [
-            'id', 'nom_entreprise', 'nom_proprietaire', 'description',
-            'logo', 'categorie', 'rubrique', 'pays', 'ville', 'adresse',
-            'localisation_latitude', 'localisation_longitude',
-            'telephone', 'email', 'site_web', 'actif',
-            'date_creation', 'date_modification',
-            'produits', 'images', 'statistiques', 'has_location'
-        ]
+        fields = ['id', 'nom_entreprise', 'nom_proprietaire', 'description', 'logo', 
+                  'categorie', 'rubrique', 'pays', 'ville', 'adresse',
+                  'localisation_latitude', 'localisation_longitude', 'telephone', 'email', 
+                  'site_web', 'actif', 'date_creation', 'date_modification',
+                  'produits', 'images', 'statistiques', 'has_location']
 
 
 class ArtisanCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Artisan
-        fields = [
-            'id',  # ← IMPORTANT : Retourne l'ID
-            'uuid',  # ← Et l'UUID aussi
-            'nom_entreprise', 'nom_proprietaire', 'description', 'logo',
-            'categorie', 'rubrique', 'pays', 'ville', 'adresse',
-            'telephone', 'email', 'actif'
-        ]
-        read_only_fields = ['id', 'uuid']  # ← Ces champs ne sont pas modifiables
+        fields = ['id', 'uuid', 'nom_entreprise', 'nom_proprietaire', 'description', 'logo',
+                  'categorie', 'rubrique', 'pays', 'ville', 'adresse', 'telephone', 'email', 'actif']
+        read_only_fields = ['id', 'uuid']
 
     def validate_description(self, value):
         if len(value) < 50:
-            raise serializers.ValidationError(
-                "La description doit contenir au moins 50 caractères."
-            )
+            raise serializers.ValidationError("La description doit contenir au moins 50 caractères.")
         return value
 
     def create(self, validated_data):
         user = self.context['request'].user
         if hasattr(user, 'artisan'):
-            raise serializers.ValidationError(
-                "Vous avez déjà un profil artisan."
-            )
+            raise serializers.ValidationError("Vous avez déjà un profil artisan.")
         artisan = Artisan.objects.create(user=user, **validated_data)
         StatistiqueArtisan.objects.create(artisan=artisan)
         return artisan
@@ -240,7 +154,199 @@ class LocationUpdateSerializer(serializers.Serializer):
     adresse = serializers.CharField(max_length=300, required=False, allow_blank=True)
 
 
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ['role', 'telephone', 'photo', 'date_naissance', 'adresse', 'ville', 
+                  'pays', 'profile_artisan_complete']
+        read_only_fields = ['profile_artisan_complete']
+
+
 class UserSerializer(serializers.ModelSerializer):
+    profile = UserProfileSerializer(read_only=True)
+    
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'profile']
+
+
+class ProfilClientSerializer(serializers.ModelSerializer):
+    categories_preferees = CategorieSerializer(many=True, read_only=True)
+    categories_preferees_ids = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Categorie.objects.all(), source='categories_preferees',
+        write_only=True, required=False
+    )
+    user_info = serializers.SerializerMethodField()
+    nombre_favoris = serializers.ReadOnlyField()
+    
+    class Meta:
+        model = ProfilClient
+        fields = ['id', 'user', 'user_info', 'categories_preferees', 'categories_preferees_ids',
+                  'ville_preference', 'pays_preference', 'rayon_recherche_km',
+                  'budget_min', 'budget_max', 'recevoir_nouveautes', 'recevoir_promotions',
+                  'bio', 'nombre_favoris', 'date_creation', 'date_modification']
+        read_only_fields = ['user', 'date_creation', 'date_modification', 'nombre_favoris']
+    
+    def get_user_info(self, obj):
+        return {
+            'username': obj.user.username,
+            'email': obj.user.email,
+            'nom_complet': obj.user.get_full_name(),
+            'first_name': obj.user.first_name,
+            'last_name': obj.user.last_name,
+            'photo': obj.user.profile.photo.url if obj.user.profile.photo else None,
+        }
+
+
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
+    password2 = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
+    role = serializers.ChoiceField(choices=UserProfile.ROLE_CHOICES, write_only=True, required=True)
+    telephone = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'password', 'password2', 'first_name', 'last_name', 'role', 'telephone']
+        extra_kwargs = {
+            'first_name': {'required': True},
+            'last_name': {'required': True},
+            'email': {'required': True},
+        }
+    
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError({"password": "Les mots de passe ne correspondent pas."})
+        if User.objects.filter(email=attrs['email']).exists():
+            raise serializers.ValidationError({"email": "Cet email est déjà utilisé."})
+        if User.objects.filter(username=attrs['username']).exists():
+            raise serializers.ValidationError({"username": "Ce nom d'utilisateur est déjà pris."})
+        return attrs
+    
+    def create(self, validated_data):
+        password2 = validated_data.pop('password2')
+        role = validated_data.pop('role')
+        telephone = validated_data.pop('telephone', '')
+        
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password'],
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', '')
+        )
+        
+        # Créer le profil manuellement
+        profile, created = UserProfile.objects.get_or_create(
+            user=user,
+            defaults={'role': role, 'telephone': telephone}
+        )
+        
+        if not created:
+            profile.role = role
+            profile.telephone = telephone
+            profile.save()
+        
+        return user
+
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField(required=True)
+    password = serializers.CharField(required=True, write_only=True, style={'input_type': 'password'})
+    
+    def validate(self, attrs):
+        user = authenticate(username=attrs.get('username'), password=attrs.get('password'))
+        if user is None:
+            raise serializers.ValidationError({"detail": "Identifiants incorrects."})
+        if not user.is_active:
+            raise serializers.ValidationError({"detail": "Ce compte est désactivé."})
+        attrs['user'] = user
+        return attrs
+    
+    def create(self, validated_data):
+        user = validated_data['user']
+        refresh = RefreshToken.for_user(user)
+        return {
+            'user': UserSerializer(user).data,
+            'tokens': {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }
+        }
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+    new_password2 = serializers.CharField(required=True, write_only=True)
+    
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['new_password2']:
+            raise serializers.ValidationError({"new_password": "Les nouveaux mots de passe ne correspondent pas."})
+        return attrs
+    
+class MessageSerializer(serializers.ModelSerializer):
+    expediteur_nom = serializers.SerializerMethodField()
+    est_moi = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Message
+        fields = ['id', 'contenu', 'date_envoi', 'lu', 'expediteur', 
+                  'expediteur_nom', 'est_moi']
+        read_only_fields = ['expediteur', 'date_envoi']
+    
+    def get_expediteur_nom(self, obj):
+        return obj.expediteur.get_full_name() or obj.expediteur.username
+    
+    def get_est_moi(self, obj):
+        request = self.context.get('request')
+        if request and request.user:
+            return obj.expediteur.id == request.user.id
+        return False
+
+
+class ConversationSerializer(serializers.ModelSerializer):
+    artisan_info = serializers.SerializerMethodField()
+    client_info = serializers.SerializerMethodField()
+    dernier_message = serializers.SerializerMethodField()
+    non_lus = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Conversation
+        fields = ['id', 'artisan', 'client', 'artisan_info', 'client_info',
+                  'date_creation', 'derniere_activite', 'dernier_message', 
+                  'non_lus', 'client_non_lu', 'artisan_non_lu']
+    
+    def get_artisan_info(self, obj):
+        return {
+            'id': obj.artisan.id,
+            'nom': obj.artisan.nom_entreprise,
+            'logo': obj.artisan.logo.url if obj.artisan.logo else None,
+            'ville': obj.artisan.ville,
+        }
+    
+    def get_client_info(self, obj):
+        return {
+            'id': obj.client.id,
+            'nom': obj.client.get_full_name() or obj.client.username,
+            'email': obj.client.email,
+        }
+    
+    def get_dernier_message(self, obj):
+        dernier = obj.messages.last()
+        if dernier:
+            return {
+                'contenu': dernier.contenu[:50],
+                'date': dernier.date_envoi,
+                'expediteur': dernier.expediteur.id
+            }
+        return None
+    
+    def get_non_lus(self, obj):
+        request = self.context.get('request')
+        if request and request.user:
+            # Si client, retourne ses non-lus
+            if request.user.id == obj.client.id:
+                return obj.client_non_lu
+            # Si artisan, retourne ses non-lus
+            return obj.artisan_non_lu
+        return 0

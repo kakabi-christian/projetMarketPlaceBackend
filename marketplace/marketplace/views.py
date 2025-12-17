@@ -1,22 +1,38 @@
-# artisans/views.py
-from rest_framework import viewsets, status, filters
-from rest_framework.decorators import action
+# views.py - IMPORTS CORRIGÉS (remplacer les lignes 1-30)
+
+from django.shortcuts import render
+from django.contrib.auth.models import User
+from django.contrib.auth import update_session_auth_hash
+
+from rest_framework import viewsets, generics, status, permissions, filters
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.shortcuts import get_object_or_404
+from rest_framework_simplejwt.views import TokenObtainPairView
+
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import (
-    Categorie, Rubrique, Artisan, Produit, 
-    ArtisanImage, StatistiqueArtisan
+    Categorie, Rubrique, Artisan,
+    Produit, ArtisanImage, StatistiqueArtisan, 
+    ImageProduit, UserProfile
 )
+
 from .serializers import (
     CategorieSerializer, RubriqueSerializer,
     ArtisanListSerializer, ArtisanDetailSerializer,
     ArtisanCreateUpdateSerializer, ProduitSerializer,
     ArtisanImageSerializer, LocationUpdateSerializer,
-    StatistiqueArtisanSerializer
+    ProduitCreateUpdateSerializer, ImageProduitSerializer,
+    RegisterSerializer, LoginSerializer, UserSerializer,
+    ChangePasswordSerializer, UserProfileSerializer
 )
+from .serializers import (
+    RegisterSerializer, LoginSerializer, UserSerializer,
+    ChangePasswordSerializer, UserProfileSerializer
+)
+from .models import UserProfile, Artisan
 
 
 class CategorieViewSet(viewsets.ReadOnlyModelViewSet):
