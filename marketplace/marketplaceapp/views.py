@@ -13,6 +13,8 @@ from .models import User, Artisan, ArtisanKYC, Activite, Specialite
 from .forms import ArtisanCreationForm, ArtisanKYCForm
 from .models import Conversation, Message
 from .models import Subscription, Report
+from .models import PostLike
+from .models import Notification
 
 # ===================== AUTHENTIFICATION (API - Flutter) =====================
 
@@ -461,11 +463,33 @@ def artisan_list(request):
     if request.method != 'GET':
         return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
     try:
-        artisans = list(Artisan.objects.filter(is_deleted=False).values())
-        return JsonResponse({'artisans': artisans}, status=200)
+        # Récupérer les artisans avec les informations de l'utilisateur associé
+        artisans = Artisan.objects.filter(is_deleted=False).select_related('user')
+        
+        artisans_data = []
+        for artisan in artisans:
+            artisan_dict = {
+                'id': artisan.id,
+                'user_id': artisan.user.id,
+                'nom': artisan.user.nom,  # 👈 Ajout du nom
+                'prenom': artisan.user.prenom,  # 👈 Ajout du prénom
+                'email': artisan.user.email,
+                'telephone': artisan.user.telephone,
+                'ville': artisan.user.ville,
+                'description': artisan.description,
+                'adresse': artisan.adresse,
+                'latitude': artisan.latitude,
+                'longitude': artisan.longitude,
+                'is_verified': artisan.is_verified,
+                'verified_at': artisan.verified_at.isoformat() if artisan.verified_at else None,
+                'created_at': artisan.created_at.isoformat(),
+                'updated_at': artisan.updated_at.isoformat(),
+            }
+            artisans_data.append(artisan_dict)
+        
+        return JsonResponse({'artisans': artisans_data}, status=200)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 def artisan_update(request, artisan_id):
@@ -919,6 +943,126 @@ def post_delete(request, post_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+
+@csrf_exempt
+def artisan_posts(request, artisan_id):
+    """
+    Récupère tous les posts d'un artisan spécifique
+    GET /api/artisan/<artisan_id>/posts/
+    """
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    
+    try:
+        # Vérifier que l'artisan existe
+        artisan = Artisan.objects.filter(id=artisan_id, is_deleted=False).first()
+        if not artisan:
+            return JsonResponse({'error': 'Artisan non trouvé'}, status=404)
+        
+        # Récupérer les posts de l'artisan (non supprimés)
+        posts = Post.objects.filter(
+            artisan_id=artisan_id,
+            is_deleted=False
+        ).select_related('artisan__user').order_by('-created_at')
+        
+        # Construire la liste des posts
+        posts_data = []
+        for post in posts:
+            post_dict = {
+                'id': post.id,
+                'artisan_id': post.artisan.id,
+                'artisan_user_id': post.artisan.user.id,
+                'artisan_nom': post.artisan.user.nom,
+                'artisan_prenom': post.artisan.user.prenom,
+                'artisan_is_verified': post.artisan.is_verified,
+                'titre': post.titre,
+                'description': post.description,
+                'media_url': post.media_url,
+                'likes_count': post.likes_count,
+                'comments_count': post.comments_count,
+                'created_at': post.created_at.isoformat(),
+                'updated_at': post.updated_at.isoformat(),
+            }
+            posts_data.append(post_dict)
+        
+        return JsonResponse({
+            'success': True,
+            'artisan': {
+                'id': artisan.id,
+                'nom': artisan.user.nom,
+                'prenom': artisan.user.prenom,
+                'description': artisan.description,
+            },
+            'posts_count': len(posts_data),
+            'posts': posts_data
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def user_artisan_posts(request, user_id):
+    """
+    Récupère tous les posts d'un artisan à partir de son user_id
+    GET /api/user/<user_id>/posts/
+    """
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    
+    try:
+        # Récupérer l'artisan associé à cet utilisateur
+        artisan = Artisan.objects.filter(
+            user_id=user_id,
+            is_deleted=False
+        ).first()
+        
+        if not artisan:
+            return JsonResponse({
+                'error': 'Aucun artisan trouvé pour cet utilisateur'
+            }, status=404)
+        
+        # Récupérer les posts de l'artisan
+        posts = Post.objects.filter(
+            artisan=artisan,
+            is_deleted=False
+        ).select_related('artisan__user').order_by('-created_at')
+        
+        posts_data = []
+        for post in posts:
+            post_dict = {
+                'id': post.id,
+                'artisan_id': post.artisan.id,
+                'artisan_user_id': post.artisan.user.id,
+                'artisan_nom': post.artisan.user.nom,
+                'artisan_prenom': post.artisan.user.prenom,
+                'artisan_is_verified': post.artisan.is_verified,
+                'titre': post.titre,
+                'description': post.description,
+                'media_url': post.media_url,
+                'likes_count': post.likes_count,
+                'comments_count': post.comments_count,
+                'created_at': post.created_at.isoformat(),
+                'updated_at': post.updated_at.isoformat(),
+            }
+            posts_data.append(post_dict)
+        
+        return JsonResponse({
+            'success': True,
+            'artisan': {
+                'id': artisan.id,
+                'user_id': artisan.user.id,
+                'nom': artisan.user.nom,
+                'prenom': artisan.user.prenom,
+                'description': artisan.description,
+                'is_verified': artisan.is_verified,
+            },
+            'posts_count': len(posts_data),
+            'posts': posts_data
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 @csrf_exempt
 def post_like(request, post_id):
     """
@@ -1457,3 +1601,60 @@ def admin_clients(request):
     return JsonResponse({
         "clients": list(clients)
     })
+
+
+@csrf_exempt
+def post_like(request, post_id):
+    """
+    Bascule (toggle) l'état "Liké" pour un post par un utilisateur.
+    Si le like existe, il est supprimé (unlike). S'il n'existe pas, il est créé (like).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+        
+        if not user_id:
+            return JsonResponse({'error': 'ID utilisateur requis'}, status=400)
+            
+        post = Post.objects.get(pk=post_id, is_deleted=False)
+        user = User.objects.get(pk=user_id, is_deleted=False)
+        
+        # Vérifie si l'utilisateur a déjà liké ce post
+        like_exists = PostLike.objects.filter(post=post, user=user).first()
+        
+        action = ""
+        
+        if like_exists:
+            # UNLIKE: Supprimer le like existant
+            like_exists.delete()
+            post.likes_count -= 1
+            action = "unliked"
+        else:
+            # LIKE: Créer un nouveau like
+            PostLike.objects.create(
+                post=post,
+                user=user,
+                type_like='LIKE' # En supposant que le type par défaut est LIKE
+            )
+            post.likes_count += 1
+            action = "liked"
+        
+        post.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f"Post {action} avec succès.",
+            'action': action,
+            'is_liked': action == 'liked',
+            'likes_count': post.likes_count
+        }, status=200)
+            
+    except Post.DoesNotExist:
+        return JsonResponse({'error': 'Post non trouvé'}, status=404)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'Utilisateur non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

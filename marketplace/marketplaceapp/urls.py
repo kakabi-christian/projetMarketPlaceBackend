@@ -58,6 +58,13 @@ urlpatterns = [
     path('posts/<int:post_id>/delete/', post_delete, name='post_delete'),
     path('posts/<int:post_id>/like/', post_like, name='post_like'),
 
+     # ================== POSTS PAR ARTISAN ==================
+    # Récupérer les posts par ID artisan
+    path('artisan/<int:artisan_id>/posts/', artisan_posts, name='artisan_posts'),
+    
+    # Récupérer les posts par ID utilisateur (plus pratique côté Flutte)
+    path('user/<int:user_id>/posts/', user_artisan_posts, name='user_artisan_posts'),
+
 
     # Posts
     path('posts/create/', views.post_create, name='post_create'),
@@ -69,6 +76,8 @@ urlpatterns = [
     # Commentaires
     path('posts/<int:post_id>/comments/create/', views.post_comment_create, name='post_comment_create'),
     path('posts/<int:post_id>/comments/', views.post_comment_list, name='post_comment_list'),
+    path('posts/<int:post_id>/like/', views.post_like, name='post_like'), # Toggle Like
+
 
     # Messagerie
     path('conversations/<int:user_id>/', views.conversation_list, name='conversation_list'),
@@ -87,6 +96,8 @@ urlpatterns = [
     path('admin/clients/', views.admin_clients, name='list_clients'),
     path('admin/clients/<int:id>/update/', views.update_client, name='update_client'),
     path('admin/clients/<int:id>/delete/', views.delete_client, name='delete_client'),
+
+
 
 
 ]
