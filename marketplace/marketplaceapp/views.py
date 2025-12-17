@@ -824,25 +824,33 @@ def post_create(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-
 @csrf_exempt
 def post_list(request):
     """
-    Lister tous les posts (avec pagination optionnelle)
+    Lister tous les posts ou filtrer par artisan (avec pagination)
     """
     if request.method != 'GET':
         return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
     
     try:
-        # Récupérer tous les posts non supprimés
-        posts = Post.objects.filter(is_deleted=False).select_related(
-            'artisan__user'
-        ).order_by('-created_at')
-        
-        # Pagination optionnelle
+        # 1. Récupérer les paramètres de filtrage et pagination
+        artisan_id = request.GET.get('artisan_id') # Récupère l'id si envoyé depuis Flutter
         page = int(request.GET.get('page', 1))
         page_size = int(request.GET.get('page_size', 10))
+
+        # 2. Préparer la requête de base
+        # select_related('artisan__user') optimise pour récupérer les infos de l'utilisateur d'un coup
+        queryset = Post.objects.filter(is_deleted=False).select_related('artisan__user')
+
+        # 3. FILTRAGE : Si l'artisan_id est fourni, on filtre les posts
+        if artisan_id:
+            # Note : on filtre sur l'id de l'objet Artisan (lié au User)
+            queryset = queryset.filter(artisan_id=artisan_id)
+
+        # 4. Ordonner par date de création
+        posts = queryset.order_by('-created_at')
         
+        # 5. Calcul des limites de pagination
         start = (page - 1) * page_size
         end = start + page_size
         
@@ -859,6 +867,7 @@ def post_list(request):
                 'created_at': post.created_at.isoformat(),
                 'artisan': {
                     'id': post.artisan.id,
+                    'user_id': post.artisan.user.id,
                     'nom': post.artisan.user.nom,
                     'prenom': post.artisan.user.prenom,
                     'is_verified': post.artisan.is_verified,
@@ -875,8 +884,7 @@ def post_list(request):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
-
+    
 @csrf_exempt
 def post_detail(request, post_id):
     """
